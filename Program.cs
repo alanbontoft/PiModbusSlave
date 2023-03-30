@@ -1,4 +1,5 @@
-﻿using System.Net.NetworkInformation;
+﻿using System;
+using System.Net.NetworkInformation;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
@@ -138,29 +139,43 @@ namespace ModbusSlave
         ////////////////////////////////
         private static void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
         {
-            SerialPort port = (SerialPort)sender;
-
-            int data = port.ReadByte();
-
-            if (data == 10)
+            try
             {
-                rxBuffer[bufferIndex++] = 0;
+                SerialPort port = (SerialPort)sender;
 
-                var s = System.Text.Encoding.UTF8.GetString(rxBuffer).Trim('\0');
+                int data = port.ReadByte();
 
-                Console.WriteLine($"Data Received: {s}");
+                if (data == 10)
+                {
+                    rxBuffer[bufferIndex++] = 0;
 
-                frequency = float.Parse(s);
+                    var s = System.Text.Encoding.UTF8.GetString(rxBuffer).Trim('\0');
 
-                bufferIndex = 0;
+                    Console.WriteLine($"Data Received: {s}");
+
+                    frequency = float.Parse(s);
+
+                    resetRxBuffer();
+                }
+                else
+                {
+                    rxBuffer[bufferIndex++] = (byte)data;
+                }
+
+                // check for buffer overrun
+                if (bufferIndex == rxBuffer.Length) bufferIndex = 0;
             }
-            else
+            catch (Exception ex)
             {
-                rxBuffer[bufferIndex++] = (byte)data;
+                Console.WriteLine($"Exception: {ex.Message}");
+                resetRxBuffer();
             }
+        }
 
-            // check for buffer overrun
-            if (bufferIndex == rxBuffer.Length) bufferIndex = 0;
+        private static void resetRxBuffer()
+        {
+            bufferIndex = 0;
+            Array.Fill<byte>(rxBuffer, 0);
         }
     }
 }
