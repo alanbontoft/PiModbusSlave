@@ -28,7 +28,7 @@
             "request": "launch",
             // "preLaunchTask": "build",
             "program": "/home/pi/target/ModbusSlave/ModbusSlave",
-            "args": [ "serial0", "eth0", "1502" ],
+            "args": [ "serial0", "eth0", "1502", "1" ],
             "cwd": "/home/pi/target/ModbusSlave",
             "stopAtEntry": false,
             "console": "internalConsole",
@@ -38,7 +38,7 @@
                 "pipeArgs": [
                     "-pw",
                     "raspberry",
-                    "pi@172.31.7.14"
+                    "pi@192.168.0.125"
                 ],
                 "debuggerPath": "/home/pi/vsdbg/vsdbg"
             }
@@ -48,7 +48,7 @@
             "type": "coreclr",
             "request": "launch",
             "program": "~/target/ModbusSlave/ModbusSlave",
-            "args": [ "serial0", "eth0", "1502" ],
+            "args": [ "serial0", "eth0", "1502", "1" ],
             "cwd": "~/target/ModbusSlave",
             "stopAtEntry": true,
             "console": "internalConsole",

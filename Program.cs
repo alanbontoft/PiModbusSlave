@@ -23,13 +23,15 @@ namespace ModbusSlave
             try
             {
 
-                if (args.Length < 3) throw new Exception("Usage: ModbusSlave [uart] [lan] [tcp port]\ne.g. ModbusSlave serial0 eth0 1502");
+                if (args.Length < 4) throw new Exception("Usage: ModbusSlave [uart] [lan] [tcp port] [Slave ID]\ne.g. ModbusSlave serial0 eth0 1502 1");
 
                 var uart = args[0];
 
-                var lan = args[1];
+                var nic = args[1];
                 
                 var tcpport = int .Parse(args[2]);
+
+                var slaveId = byte.Parse(args[3]);
 
                 var dev = $"/dev/{uart}";    
 
@@ -42,6 +44,10 @@ namespace ModbusSlave
 
                 serialPort.Open();
 
+                Console.WriteLine();
+                Console.WriteLine("--------");
+                Console.WriteLine("NIC List");
+                Console.WriteLine("--------");
 
                 // create list of IPV4 network interface names and associated IP addresses
                 Dictionary<string, IPAddress> nics = new();
@@ -59,7 +65,9 @@ namespace ModbusSlave
                 } 
 
                 // retrieve IP adrress for required interface
-                var ipaddress = nics[lan];
+                var ipaddress = nics[nic];
+
+                Console.WriteLine($"\n\nStarting slave on {nic} at IP address {ipaddress.ToString()}");
 
                 // create and start the TCP slave
                 var listener = new TcpListener(ipaddress, tcpport);
@@ -74,11 +82,11 @@ namespace ModbusSlave
                 // create storage for modbus registers
                 var dataStore = new SlaveStorage();
 
-                IModbusSlave slave1 = factory.CreateSlave(1, dataStore);
-                IModbusSlave slave2 = factory.CreateSlave(2);
+                IModbusSlave slave = factory.CreateSlave(slaveId, dataStore);
+                // IModbusSlave slave2 = factory.CreateSlave(2);
 
-                network.AddSlave(slave1);
-                network.AddSlave(slave2);
+                network.AddSlave(slave);
+                // network.AddSlave(slave2);
 
                 // create task to update holding registers
                 Task.Run(() =>  
@@ -88,10 +96,10 @@ namespace ModbusSlave
 
                     while(true)
                     {
-                        Thread.Sleep(1000);
+                        Thread.Sleep(250);
 
                         // dummy code to modify frequency
-                        frequency += 0.123f;
+                        // frequency += 0.123f;
 
                         // only update if value has changed
                         if (frequency != lastfrequency)
@@ -138,7 +146,7 @@ namespace ModbusSlave
             {
                 rxBuffer[bufferIndex++] = 0;
 
-                var s = System.Text.Encoding.ASCII.GetString(rxBuffer);
+                var s = System.Text.Encoding.UTF8.GetString(rxBuffer).Trim('\0');
 
                 Console.WriteLine($"Data Received: {s}");
 
