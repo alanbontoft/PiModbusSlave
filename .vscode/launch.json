@@ -28,7 +28,7 @@
             "request": "launch",
             // "preLaunchTask": "build",
             "program": "/home/pi/target/ModbusSlave/ModbusSlave",
-            "args": [ "serial0", "eth0", "1502", "1" ],
+            "args": [ "serial0", "wlan0", "1502", "1" ],
             "cwd": "/home/pi/target/ModbusSlave",
             "stopAtEntry": false,
             "console": "internalConsole",

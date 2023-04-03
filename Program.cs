@@ -1,5 +1,4 @@
-﻿using System;
-using System.Net.NetworkInformation;
+﻿using System.Net.NetworkInformation;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
@@ -38,11 +37,6 @@ namespace ModbusSlave
 
                 // create and open serial port
                 serialPort = new SerialPort(dev, 115200, Parity.None, 8, StopBits.One);
-
-                serialPort.ReceivedBytesThreshold = 1;
-
-                serialPort.DataReceived += DataReceivedHandler;
-
                 serialPort.Open();
 
                 Console.WriteLine();
@@ -97,11 +91,6 @@ namespace ModbusSlave
 
                     while(true)
                     {
-                        Thread.Sleep(250);
-
-                        // dummy code to modify frequency
-                        // frequency += 0.123f;
-
                         // only update if value has changed
                         if (frequency != lastfrequency)
                         {
@@ -118,6 +107,57 @@ namespace ModbusSlave
                             // update lastfrequency value
                             lastfrequency = frequency;
                         }
+
+                        Thread.Sleep(100);
+                    }
+                });
+
+                // create task to read serial port input
+                Task.Run(() =>  
+                {
+                    string uartData;
+
+                    while(true)
+                    {
+                        try
+                        {
+                            if (serialPort.BytesToRead > 0)
+                            {
+                                
+                                uartData = serialPort.ReadExisting();
+
+                                foreach (char data in uartData)
+                                {
+                                    if (data == 10)
+                                    {
+                                        rxBuffer[bufferIndex++] = 0;
+
+                                        var s = System.Text.Encoding.UTF8.GetString(rxBuffer).Trim('\0');
+
+                                        Console.WriteLine($"Data Received: {s}");
+
+                                        frequency = float.Parse(s);
+
+                                        resetRxBuffer();
+                                    }
+                                    else
+                                    {
+                                        rxBuffer[bufferIndex++] = (byte)data;
+                                    }
+
+                                    // check for buffer overrun
+                                    if (bufferIndex == rxBuffer.Length) bufferIndex = 0;
+                                }
+
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Exception: {ex.Message}");
+                            resetRxBuffer();
+                        }
+
+                        Thread.Sleep(100);
                     }
                 });
 
@@ -132,44 +172,6 @@ namespace ModbusSlave
 
             serialPort?.Close();
 
-        }
-
-        ////////////////////////////////
-        /// Handle incoming data on uart
-        ////////////////////////////////
-        private static void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
-        {
-            try
-            {
-                SerialPort port = (SerialPort)sender;
-
-                int data = port.ReadByte();
-
-                if (data == 10)
-                {
-                    rxBuffer[bufferIndex++] = 0;
-
-                    var s = System.Text.Encoding.UTF8.GetString(rxBuffer).Trim('\0');
-
-                    Console.WriteLine($"Data Received: {s}");
-
-                    frequency = float.Parse(s);
-
-                    resetRxBuffer();
-                }
-                else
-                {
-                    rxBuffer[bufferIndex++] = (byte)data;
-                }
-
-                // check for buffer overrun
-                if (bufferIndex == rxBuffer.Length) bufferIndex = 0;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Exception: {ex.Message}");
-                resetRxBuffer();
-            }
         }
 
         private static void resetRxBuffer()
