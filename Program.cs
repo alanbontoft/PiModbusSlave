@@ -2,6 +2,7 @@
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
+using System.Diagnostics;
 using NModbus;
 
 namespace ModbusSlave
@@ -9,9 +10,18 @@ namespace ModbusSlave
     class Program
     {
 
+        enum HOLDINGREGS
+        {
+            FREQUENCY = 0,
+            FLOWRATE = 2,
+            FILLTIME = 4
+        }
+
         static byte[] rxBuffer = new byte[20];
         static int bufferIndex = 0;
-        static float frequency;
+        static float frequency, flowrate, pulsesperlitre, filltime;
+
+
 
         ////////////////////////////////
         /// Main entry point
@@ -20,10 +30,12 @@ namespace ModbusSlave
         {
             SerialPort? serialPort = null;
 
+            Stopwatch stopwatch = new();
+
             try
             {
 
-                if (args.Length < 4) throw new Exception("Usage: ModbusSlave [uart] [lan] [tcp port] [Slave ID]\ne.g. ModbusSlave serial0 eth0 1502 1");
+                if (args.Length < 5) throw new Exception("Usage: ModbusSlave [uart] [lan] [tcp port] [Slave ID] [Pulses per litre]\ne.g. ModbusSlave serial0 eth0 1502 1 1200");
 
                 var uart = args[0];
 
@@ -32,6 +44,8 @@ namespace ModbusSlave
                 var tcpport = int .Parse(args[2]);
 
                 var slaveId = byte.Parse(args[3]);
+
+                pulsesperlitre = float.Parse(args[4]);
 
                 var dev = $"/dev/{uart}";    
 
@@ -62,7 +76,7 @@ namespace ModbusSlave
                 // retrieve IP adrress for required interface
                 var ipaddress = nics[nic];
 
-                Console.WriteLine($"\n\nStarting slave on {nic} at IP address {ipaddress.ToString()}");
+                Console.WriteLine($"\nStarting slave at address {slaveId} on {nic} at IP address {ipaddress.ToString()}\n");
 
                 // create and start the TCP slave
                 var listener = new TcpListener(ipaddress, tcpport);
@@ -91,7 +105,7 @@ namespace ModbusSlave
 
                     while(true)
                     {
-                        // only update if value has changed
+                        // only update frequency/flowrate if value has changed
                         if (frequency != lastfrequency)
                         {
                             // convert float to bytes
@@ -102,11 +116,50 @@ namespace ModbusSlave
                             words[1] = BitConverter.ToUInt16(bytes, 2);
 
                             // write to holding regs
-                            dataStore.HoldingRegisters.WritePoints(0, words);
+                            dataStore.HoldingRegisters.WritePoints((ushort)HOLDINGREGS.FREQUENCY, words);
+
+                            // calculate flow rate
+                            flowrate = frequency * 60.0F / pulsesperlitre;
+
+                            bytes = BitConverter.GetBytes(flowrate);
+
+                            // extract lo and hi words
+                            words[0] = BitConverter.ToUInt16(bytes, 0);
+                            words[1] = BitConverter.ToUInt16(bytes, 2);
+
+                            // write to holding regs
+                            dataStore.HoldingRegisters.WritePoints((ushort)HOLDINGREGS.FLOWRATE, words);
 
                             // update lastfrequency value
                             lastfrequency = frequency;
                         }
+
+                        // update fill time on every pass
+                        if (frequency == 0.0)
+                        {
+                            stopwatch.Reset();
+                            filltime = 0.0F;
+                        }
+                        else
+                        {
+                            if (stopwatch.IsRunning)
+                            {
+                                filltime = (float)stopwatch.ElapsedMilliseconds / 1000.0F;
+                            }
+                            else
+                            {
+                                stopwatch.Restart();
+                            }
+                        }
+
+                        var fillbytes = BitConverter.GetBytes(filltime);
+
+                        // extract lo and hi words
+                        words[0] = BitConverter.ToUInt16(fillbytes, 0);
+                        words[1] = BitConverter.ToUInt16(fillbytes, 2);
+
+                        // write to holding regs
+                        dataStore.HoldingRegisters.WritePoints((ushort)HOLDINGREGS.FILLTIME, words);
 
                         Thread.Sleep(100);
                     }
